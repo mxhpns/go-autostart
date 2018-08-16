@@ -1,21 +1,14 @@
 package autostart
 
-// #cgo LDFLAGS: -lole32 -luuid
-/*
-#define WIN32_LEAN_AND_MEAN
-#include <stdint.h>
-#include <windows.h>
-
-uint64_t CreateShortcut(char *shortcutA, char *path, char *args);
-*/
-import "C"
-
 import (
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	ole "github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 )
 
 var startupDir string
@@ -40,13 +33,35 @@ func (a *App) Enable() error {
 	if err := os.MkdirAll(startupDir, 0777); err != nil {
 		return err
 	}
-	res := C.CreateShortcut(C.CString(a.path()), C.CString(path), C.CString(args))
-	if res != 0 {
-		return errors.New(fmt.Sprintf("autostart: cannot create shortcut '%s' error code: 0x%.8x", a.path(), res))
+	err := createShortcut(a.path(), path, args)
+	if err != nil {
+		return errors.New(fmt.Sprintf("autostart: cannot create shortcut '%s' error: %s", a.path(), err.Error()))
 	}
 	return nil
 }
 
 func (a *App) Disable() error {
 	return os.Remove(a.path())
+}
+
+func createShortcut(shortcutPth, binPth, args string) error {
+	ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED|ole.COINIT_SPEED_OVER_MEMORY)
+	oleShellObject, err := oleutil.CreateObject("WScript.Shell")
+	if err != nil {
+		return err
+	}
+	defer oleShellObject.Release()
+	wshell, err := oleShellObject.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		return err
+	}
+	defer wshell.Release()
+	cs, err := oleutil.CallMethod(wshell, "CreateShortcut", shortcutPth)
+	if err != nil {
+		return err
+	}
+	idispatch := cs.ToIDispatch()
+	oleutil.PutProperty(idispatch, "TargetPath", binPth)
+	oleutil.CallMethod(idispatch, "Save")
+	return nil
 }
