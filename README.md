@@ -6,6 +6,10 @@ A Go library to run a command after login.
 
 ## Usage
 
+Use "github.com/mxhpns/go-autostart" instead of "github.com/ProtonMail/go-autostart"
+if you have some troubles with compiling this lib like IID_IShellLinkA is undefined.
+Args will not work in this case.
+
 ```go
 package main
 
